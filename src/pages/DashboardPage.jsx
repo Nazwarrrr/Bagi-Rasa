@@ -3,7 +3,8 @@ import { useAuth } from '../contexts/AuthContext'
 import { useTheme } from '../contexts/ThemeContext'
 import AddFoodForm from '../components/donor/AddFoodForm'
 import ClaimQueueList from '../components/donor/ClaimQueueList'
-import { User, Phone, MapPin, PlusCircle, Inbox, Loader, CheckCircle } from 'lucide-react'
+import DonorPostList from '../components/donor/DonorPostList'
+import { User, Phone, MapPin, PlusCircle, Inbox, Utensils, Loader, CheckCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 function ProfileSetupForm({ onDone }) {
@@ -62,7 +63,7 @@ function ProfileSetupForm({ onDone }) {
 export default function DashboardPage() {
   const { profile, refetchProfile } = useAuth()
   const { isDark } = useTheme()
-  const [activeTab, setActiveTab] = useState('post') // 'post' | 'queue'
+  const [activeTab, setActiveTab] = useState('post') // 'post' | 'queue' | 'my_posts'
   const [refreshKey, setRefreshKey] = useState(0)
 
   if (!profile?.whatsapp_number || !profile?.district) {
@@ -86,21 +87,31 @@ export default function DashboardPage() {
       </div>
 
       {/* Tabs */}
-      <div className={`flex gap-2 p-1 rounded-2xl mb-6 ${isDark ? 'bg-white/5' : 'bg-slate-100'}`}>
+      <div className={`flex flex-wrap gap-2 p-1 rounded-2xl mb-6 ${isDark ? 'bg-white/5' : 'bg-slate-100'}`}>
         <button className={tabCls('post')} onClick={() => setActiveTab('post')}>
           <PlusCircle size={15} /> Posting Donasi
         </button>
         <button className={tabCls('queue')} onClick={() => setActiveTab('queue')}>
           <Inbox size={15} /> Antrean Klaim
         </button>
+        <button className={tabCls('my_posts')} onClick={() => setActiveTab('my_posts')}>
+          <Utensils size={15} /> Donasi Saya
+        </button>
       </div>
 
       {/* Panel */}
       <div className="glass-card rounded-2xl p-6">
-        {activeTab === 'post' ? (
-          <AddFoodForm onSuccess={() => setRefreshKey(k => k + 1)} />
-        ) : (
+        {activeTab === 'post' && (
+          <AddFoodForm onSuccess={() => {
+            setRefreshKey(k => k + 1)
+            setActiveTab('my_posts')
+          }} />
+        )}
+        {activeTab === 'queue' && (
           <ClaimQueueList key={refreshKey} />
+        )}
+        {activeTab === 'my_posts' && (
+          <DonorPostList key={refreshKey} onPostUpdated={() => setRefreshKey(k => k + 1)} />
         )}
       </div>
     </main>

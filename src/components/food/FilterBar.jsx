@@ -1,10 +1,21 @@
-import { Search, ChevronDown } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Search, ChevronDown, X } from 'lucide-react'
 import { useTheme } from '../../contexts/ThemeContext'
 
 const CATEGORIES = ['Semua', 'Makanan Berat', 'Roti & Kue', 'Bahan Masak']
 
 export default function FilterBar({ filters, onChange, districts = [] }) {
   const { isDark } = useTheme()
+  const [searchTerm, setSearchTerm] = useState(filters.search || '')
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      if (searchTerm !== filters.search) {
+        onChange({ search: searchTerm })
+      }
+    }, 300)
+    return () => clearTimeout(handler)
+  }, [searchTerm, filters.search, onChange])
 
   const inputCls = `w-full px-3 py-2.5 rounded-xl text-sm border outline-none transition-all focus:ring-2 focus:ring-teal-500/40 ${
     isDark
@@ -20,10 +31,22 @@ export default function FilterBar({ filters, onChange, districts = [] }) {
         <input
           type="text"
           placeholder="Cari makanan atau alamat..."
-          value={filters.search}
-          onChange={e => onChange({ search: e.target.value })}
-          className={`${inputCls} pl-9`}
+          value={searchTerm}
+          onChange={e => setSearchTerm(e.target.value)}
+          className={`${inputCls} pl-9 pr-8`}
         />
+        {searchTerm && (
+          <button
+            type="button"
+            onClick={() => {
+              setSearchTerm('')
+              onChange({ search: '' })
+            }}
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+          >
+            <X size={14} />
+          </button>
+        )}
       </div>
 
       {/* District dropdown */}

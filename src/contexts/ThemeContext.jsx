@@ -13,6 +13,11 @@ export function ThemeProvider({ children }) {
 
   useEffect(() => {
     localStorage.setItem('bagirasa_theme', isDark ? 'dark' : 'light')
+    if (isDark) {
+      document.documentElement.classList.add('dark')
+    } else {
+      document.documentElement.classList.remove('dark')
+    }
   }, [isDark])
 
   const toggleTheme = () => setIsDark(prev => !prev)

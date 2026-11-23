@@ -120,6 +120,11 @@ DECLARE
   v_pickup_code   TEXT;
   v_claim_id      UUID;
 BEGIN
+  -- Validasi jumlah porsi
+  IF p_portions NOT BETWEEN 1 AND 2 THEN
+    RAISE EXCEPTION 'Jumlah klaim harus antara 1 sampai 2 porsi';
+  END IF;
+
   -- Lock baris untuk mencegah race condition
   SELECT * INTO v_post
   FROM public.food_posts
@@ -171,6 +176,7 @@ SECURITY DEFINER
 AS $$
 DECLARE
   v_claim public.claims%ROWTYPE;
+  v_post  public.food_posts%ROWTYPE;
 BEGIN
   SELECT * INTO v_claim
   FROM public.claims
@@ -179,6 +185,13 @@ BEGIN
 
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Klaim tidak ditemukan atau sudah diproses';
+  END IF;
+
+  SELECT * INTO v_post FROM public.food_posts WHERE id = v_claim.post_id;
+
+  -- Validasi otorisasi: hanya donatur pemilik makanan yang boleh membatalkan
+  IF auth.uid() IS NULL OR auth.uid() != v_post.donor_id THEN
+    RAISE EXCEPTION 'Hanya donatur pemilik makanan yang berhak membatalkan klaim ini';
   END IF;
 
   -- Batalkan klaim
@@ -216,6 +229,11 @@ BEGIN
   END IF;
 
   SELECT * INTO v_post FROM public.food_posts WHERE id = v_claim.post_id;
+
+  -- Validasi otorisasi: hanya donatur pemilik makanan yang boleh memverifikasi
+  IF auth.uid() IS NULL OR auth.uid() != v_post.donor_id THEN
+    RAISE EXCEPTION 'Hanya donatur pemilik makanan yang berhak memverifikasi pengambilan ini';
+  END IF;
 
   -- Tandai klaim sebagai diambil
   UPDATE public.claims
@@ -283,6 +301,19 @@ CREATE POLICY "Anyone can view claims"
 
 CREATE POLICY "Anyone can insert claims (via RPC)"
   ON public.claims FOR INSERT WITH CHECK (true);
+
+-- ─── INDEXES UNTUK PERFORMA ───────────────────────────────────
+CREATE INDEX IF NOT EXISTS idx_food_posts_active 
+  ON public.food_posts (status, expires_at, remaining_portions);
+
+CREATE INDEX IF NOT EXISTS idx_food_posts_donor 
+  ON public.food_posts (donor_id);
+
+CREATE INDEX IF NOT EXISTS idx_claims_post_id 
+  ON public.claims (post_id);
+
+CREATE INDEX IF NOT EXISTS idx_claims_status 
+  ON public.claims (status);
 
 -- ─── REALTIME ────────────────────────────────────────────────
 -- Aktifkan Realtime untuk tabel food_posts dari UI Supabase:
