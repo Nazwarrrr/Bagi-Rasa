@@ -1,0 +1,54 @@
+@import "tailwindcss";
+
+@theme {
+  --color-teal-primary: #0D9488;
+  --color-emerald-cta: #10B981;
+  --color-cyan-accent: #92EEFF;
+  --color-amber-urgency: #F59E0B;
+  --color-surface-light: #F8FAFC;
+  --color-text-light: #0F172A;
+  --color-navy-dark: #090D16;
+  --color-text-dark: #F8FAFC;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Glassmorphism card base */
+.glass-card {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+}
+
+.dark .glass-card {
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Countdown pulse animation */
+@keyframes urgency-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.urgency-pulse {
+  animation: urgency-pulse 1s ease-in-out infinite;
+}
+
+/* Smooth transitions */
+.theme-transition {
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+}
