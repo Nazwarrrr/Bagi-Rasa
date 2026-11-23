@@ -1,15 +1,13 @@
-import { MapPin, Users, Leaf, ExternalLink } from 'lucide-react'
+import { MapPin, Users, ExternalLink } from 'lucide-react'
 import CountdownTimer from './CountdownTimer'
 import { useTheme } from '../../contexts/ThemeContext'
-import { isPostClaimedLocally } from '../../lib/formatters'
 
-export default function FoodCard({ post, onClaim, onViewTicket }) {
+export default function FoodCard({ post, onClaim, onDetails }) {
   const { isDark } = useTheme()
-  const localClaim = isPostClaimedLocally(post.id)
   const isAvailable = post.remaining_portions > 0
 
   return (
-    <div className={`glass-card rounded-2xl overflow-hidden flex flex-col transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5 ${
+    <div className={`flex flex-col overflow-hidden rounded-3xl border border-slate-200/80 bg-white/85 shadow-sm backdrop-blur-lg transition-all duration-300 hover:-translate-y-0.5 hover:border-teal-500/40 hover:shadow-xl hover:shadow-teal-900/5 dark:border-white/10 dark:bg-slate-900/75 ${
       !isAvailable ? 'opacity-50 pointer-events-none' : ''
     }`}>
       {/* Image */}
@@ -22,9 +20,7 @@ export default function FoodCard({ post, onClaim, onViewTicket }) {
             loading="lazy"
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            <span className="text-5xl opacity-30">🍱</span>
-          </div>
+          <div className="flex h-full w-full items-center justify-center text-sm text-slate-600 dark:text-slate-300">Foto belum tersedia</div>
         )}
         {/* Badges overlay */}
         <div className="absolute top-2 left-2 flex gap-1.5 flex-wrap">
@@ -49,9 +45,21 @@ export default function FoodCard({ post, onClaim, onViewTicket }) {
       <div className="p-4 flex flex-col flex-1 gap-3">
         <div>
           <h3 className="font-bold text-base leading-tight line-clamp-2">{post.title}</h3>
-          <p className={`text-xs mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+          <p className={`text-xs mt-1 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
             oleh {post.profiles?.full_name || 'Donatur'}
+            {post.profiles?.district && <span> · {post.profiles.district}</span>}
           </p>
+        </div>
+
+        <div>
+          <div className="mb-1 flex justify-between text-[10px] font-medium text-slate-600 dark:text-slate-300">
+            <span>Sisa porsi</span><span>{post.remaining_portions} / {post.initial_portions}</span>
+          </div>
+          <div role="progressbar" aria-label="Sisa porsi makanan" aria-valuenow={post.remaining_portions} aria-valuemin={0} aria-valuemax={post.initial_portions}
+            className="h-1.5 overflow-hidden rounded-full bg-slate-200 dark:bg-white/10">
+            <div className="h-full rounded-full bg-gradient-to-r from-teal-500 to-emerald-500 transition-[width] duration-500"
+              style={{ width: `${Math.min(100, (post.remaining_portions / post.initial_portions) * 100)}%` }} />
+          </div>
         </div>
 
         <div className="flex items-center gap-4 text-xs">
@@ -59,7 +67,7 @@ export default function FoodCard({ post, onClaim, onViewTicket }) {
             <Users size={12} />
             {post.remaining_portions}/{post.initial_portions} porsi
           </span>
-          <span className="flex items-center gap-1 text-slate-500 dark:text-slate-400 truncate">
+          <span className="flex items-center gap-1 truncate text-slate-600 dark:text-slate-300">
             <MapPin size={12} />
             <span className="truncate">{post.pickup_address}</span>
           </span>
@@ -71,7 +79,7 @@ export default function FoodCard({ post, onClaim, onViewTicket }) {
             target="_blank"
             rel="noopener noreferrer"
             className={`flex items-center gap-1 text-xs font-medium transition-colors ${
-              isDark ? 'text-cyan-400 hover:text-cyan-300' : 'text-teal-600 hover:text-teal-700'
+              isDark ? 'text-teal-300 hover:text-emerald-300' : 'text-teal-700 hover:text-teal-800'
             }`}
             onClick={e => e.stopPropagation()}
           >
@@ -81,23 +89,18 @@ export default function FoodCard({ post, onClaim, onViewTicket }) {
         )}
 
         {/* CTA */}
-        <div className="mt-auto pt-1">
-          {localClaim ? (
-            <button
-              onClick={() => onViewTicket(post, localClaim)}
-              className="w-full py-2.5 rounded-xl text-sm font-bold bg-teal-50 dark:bg-teal-500/10 text-teal-600 dark:text-teal-400 border border-teal-200 dark:border-teal-500/30 hover:bg-teal-100 dark:hover:bg-teal-500/20 transition-colors"
-            >
-              Lihat Tiket Saya
-            </button>
-          ) : (
-            <button
-              onClick={() => onClaim(post)}
-              disabled={!isAvailable}
-              className="w-full py-2.5 rounded-xl text-sm font-bold bg-gradient-to-r from-teal-500 to-emerald-500 text-white hover:opacity-90 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              {isAvailable ? 'Ambil Porsi' : 'Stok Habis'}
-            </button>
-          )}
+        <div className="mt-auto flex gap-2 pt-1">
+          <button
+            onClick={() => onClaim(post)}
+            disabled={!isAvailable}
+            className="flex-1 rounded-xl bg-teal-600 py-2.5 text-sm font-bold text-white transition-colors hover:bg-teal-700 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {isAvailable ? 'Klaim Porsi' : 'Stok Habis'}
+          </button>
+          <button type="button" onClick={() => onDetails(post)}
+            className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-teal-500/50 hover:text-teal-700 dark:border-white/10 dark:text-slate-300 dark:hover:text-emerald-300">
+            Lihat Detail
+          </button>
         </div>
       </div>
     </div>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../../lib/supabaseClient'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTheme } from '../../contexts/ThemeContext'
@@ -12,9 +12,8 @@ export default function ClaimQueueList() {
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(null)
 
-  async function fetchClaims() {
+  const fetchClaims = useCallback(async () => {
     if (!user) return
-    setLoading(true)
     const { data, error } = await supabase
       .from('claims')
       .select(`
@@ -28,11 +27,18 @@ export default function ClaimQueueList() {
       .eq('status', 'pending')
       .order('created_at', { ascending: false })
 
-    if (!error) setClaims(data || [])
+    if (error) toast.error(`Gagal memuat antrean klaim: ${error.message}`)
+    else setClaims(data || [])
     setLoading(false)
-  }
+  }, [user])
 
-  useEffect(() => { fetchClaims() }, [user])
+  useEffect(() => {
+    fetchClaims()
+    const channel = supabase.channel(`donor-claims-${user.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'claims' }, fetchClaims)
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [fetchClaims, user.id])
 
   async function handleConfirmPickup(claimId) {
     setActionLoading(claimId)
@@ -69,18 +75,18 @@ export default function ClaimQueueList() {
   )
 
   if (claims.length === 0) return (
-    <div className={`text-center py-10 rounded-2xl ${isDark ? 'bg-white/5' : 'bg-slate-50'}`}>
-      <p className="text-sm text-slate-500 dark:text-slate-400">Belum ada antrean klaim aktif</p>
+    <div className={`rounded-3xl py-10 text-center ${isDark ? 'bg-white/5' : 'bg-slate-50'}`}>
+      <p className="text-sm text-slate-600 dark:text-slate-300">Belum ada antrean klaim aktif</p>
     </div>
   )
 
   return (
     <div className="flex flex-col gap-3">
       {claims.map(claim => (
-        <div key={claim.id} className={`glass-card rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center gap-4`}>
+        <div key={claim.id} className="glass-card flex flex-col gap-4 rounded-3xl p-5 sm:flex-row sm:items-center">
           <div className="flex-1 space-y-1.5">
             <p className="font-bold text-sm">{claim.food_posts?.title}</p>
-            <div className="flex flex-wrap gap-3 text-xs text-slate-500 dark:text-slate-400">
+            <div className="flex flex-wrap gap-3 text-xs text-slate-600 dark:text-slate-300">
               <span className="flex items-center gap-1 font-medium text-teal-600 dark:text-teal-400">
                 <Ticket size={12} />
                 {claim.pickup_code}

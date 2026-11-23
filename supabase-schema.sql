@@ -15,6 +15,8 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   whatsapp_number      TEXT,
   district             TEXT,
   total_portions_saved INTEGER NOT NULL DEFAULT 0,
+  rescue_points        INTEGER NOT NULL DEFAULT 0,
+  avatar_url           TEXT,
   created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -23,6 +25,7 @@ CREATE TABLE IF NOT EXISTS public.food_posts (
   id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   donor_id          UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
   title             TEXT NOT NULL,
+  description       TEXT,
   category          TEXT NOT NULL CHECK (category IN ('Makanan Berat', 'Roti & Kue', 'Bahan Masak')),
   is_halal          BOOLEAN NOT NULL DEFAULT TRUE,
   initial_portions  INTEGER NOT NULL CHECK (initial_portions > 0),
@@ -39,6 +42,7 @@ CREATE TABLE IF NOT EXISTS public.food_posts (
 CREATE TABLE IF NOT EXISTS public.claims (
   id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   post_id           UUID NOT NULL REFERENCES public.food_posts(id) ON DELETE CASCADE,
+  claimer_id        UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
   claimer_name      TEXT NOT NULL,
   claimer_whatsapp  TEXT NOT NULL,
   portions_claimed  INTEGER NOT NULL CHECK (portions_claimed BETWEEN 1 AND 2),
@@ -46,6 +50,14 @@ CREATE TABLE IF NOT EXISTS public.claims (
   status            TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'picked_up', 'cancelled')),
   created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Backfill columns for projects upgrading from an earlier schema version.
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS rescue_points INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS avatar_url TEXT;
+ALTER TABLE public.food_posts ADD COLUMN IF NOT EXISTS description TEXT;
+ALTER TABLE public.claims ADD COLUMN IF NOT EXISTS claimer_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE;
+ALTER TABLE public.claims ADD COLUMN IF NOT EXISTS donor_name TEXT;
+ALTER TABLE public.claims ADD COLUMN IF NOT EXISTS donor_whatsapp TEXT;
 
 -- ─── VIEWS ───────────────────────────────────────────────────
 
@@ -71,6 +83,27 @@ FROM public.profiles p
 WHERE p.total_portions_saved > 0
 ORDER BY p.total_portions_saved DESC
 LIMIT 10;
+
+CREATE OR REPLACE VIEW public.donor_profiles AS
+SELECT p.id, p.full_name, p.district, p.avatar_url
+FROM public.profiles p;
+
+CREATE OR REPLACE VIEW public.hero_leaderboard AS
+SELECT p.id, p.full_name, p.district, p.rescue_points
+FROM public.profiles p
+WHERE p.rescue_points > 0
+ORDER BY p.rescue_points DESC
+LIMIT 10;
+
+CREATE OR REPLACE VIEW public.community_impact AS
+SELECT
+  COALESCE(SUM(p.total_portions_saved), 0)::BIGINT AS total_portions,
+  COUNT(*) FILTER (WHERE p.total_portions_saved > 0)::BIGINT AS donor_count,
+  COUNT(*) FILTER (WHERE p.rescue_points > 0)::BIGINT AS hero_count
+FROM public.profiles p;
+
+GRANT SELECT ON public.donor_profiles, public.community_impact TO anon, authenticated;
+GRANT SELECT ON public.active_districts, public.donor_leaderboard, public.hero_leaderboard TO anon, authenticated;
 
 -- ─── STORAGE ─────────────────────────────────────────────────
 -- Otomatis buat bucket "food-images" (public bucket):
@@ -114,12 +147,31 @@ CREATE OR REPLACE FUNCTION public.claim_food_portion(
 RETURNS JSON
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public, pg_temp
 AS $$
 DECLARE
   v_post          public.food_posts%ROWTYPE;
   v_pickup_code   TEXT;
   v_claim_id      UUID;
+  v_donor_name    TEXT;
+  v_donor_whatsapp TEXT;
 BEGIN
+  IF auth.uid() IS NULL THEN
+    RAISE EXCEPTION 'Silakan masuk untuk mengklaim makanan';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = auth.uid()
+      AND NULLIF(BTRIM(full_name), '') IS NOT NULL
+      AND NULLIF(BTRIM(whatsapp_number), '') IS NOT NULL
+      AND NULLIF(BTRIM(district), '') IS NOT NULL
+      AND whatsapp_number = p_claimer_whatsapp
+      AND full_name = p_claimer_name
+  ) THEN
+    RAISE EXCEPTION 'Lengkapi profil sebelum mengklaim makanan';
+  END IF;
+
   -- Validasi jumlah porsi
   IF p_portions NOT BETWEEN 1 AND 2 THEN
     RAISE EXCEPTION 'Jumlah klaim harus antara 1 sampai 2 porsi';
@@ -138,6 +190,11 @@ BEGIN
     RAISE EXCEPTION 'Makanan tidak tersedia atau stok tidak mencukupi';
   END IF;
 
+  SELECT full_name, whatsapp_number
+  INTO v_donor_name, v_donor_whatsapp
+  FROM public.profiles
+  WHERE id = v_post.donor_id;
+
   -- Generate kode unik BR-XXXX
   LOOP
     v_pickup_code := 'BR-' || UPPER(SUBSTRING(encode(gen_random_bytes(3), 'hex'), 1, 4));
@@ -154,14 +211,16 @@ BEGIN
   WHERE id = p_post_id;
 
   -- Buat record klaim
-  INSERT INTO public.claims (post_id, claimer_name, claimer_whatsapp, portions_claimed, pickup_code)
-  VALUES (p_post_id, p_claimer_name, p_claimer_whatsapp, p_portions, v_pickup_code)
+  INSERT INTO public.claims (post_id, claimer_id, claimer_name, claimer_whatsapp, donor_name, donor_whatsapp, portions_claimed, pickup_code)
+  VALUES (p_post_id, auth.uid(), p_claimer_name, p_claimer_whatsapp, v_donor_name, v_donor_whatsapp, p_portions, v_pickup_code)
   RETURNING id INTO v_claim_id;
 
   RETURN json_build_object(
     'claim_id',         v_claim_id,
     'pickup_code',      v_pickup_code,
-    'portions_claimed', p_portions
+    'portions_claimed', p_portions,
+    'donor_name',       v_donor_name,
+    'donor_whatsapp',   v_donor_whatsapp
   );
 END;
 $$;
@@ -173,6 +232,7 @@ CREATE OR REPLACE FUNCTION public.cancel_claim(
 RETURNS VOID
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public, pg_temp
 AS $$
 DECLARE
   v_claim public.claims%ROWTYPE;
@@ -189,9 +249,8 @@ BEGIN
 
   SELECT * INTO v_post FROM public.food_posts WHERE id = v_claim.post_id;
 
-  -- Validasi otorisasi: hanya donatur pemilik makanan yang boleh membatalkan
-  IF auth.uid() IS NULL OR auth.uid() != v_post.donor_id THEN
-    RAISE EXCEPTION 'Hanya donatur pemilik makanan yang berhak membatalkan klaim ini';
+  IF auth.uid() IS NULL OR (auth.uid() != v_post.donor_id AND auth.uid() != v_claim.claimer_id) THEN
+    RAISE EXCEPTION 'Hanya pemilik donasi atau pengklaim yang berhak membatalkan klaim ini';
   END IF;
 
   -- Batalkan klaim
@@ -201,8 +260,11 @@ BEGIN
 
   -- Kembalikan stok
   UPDATE public.food_posts
-  SET remaining_portions = remaining_portions + v_claim.portions_claimed,
-      status = 'available'
+  SET remaining_portions = LEAST(initial_portions, remaining_portions + v_claim.portions_claimed),
+      status = CASE
+        WHEN expires_at <= NOW() THEN 'expired'
+        ELSE 'available'
+      END
   WHERE id = v_claim.post_id;
 END;
 $$;
@@ -214,6 +276,7 @@ CREATE OR REPLACE FUNCTION public.confirm_pickup(
 RETURNS VOID
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public, pg_temp
 AS $$
 DECLARE
   v_claim   public.claims%ROWTYPE;
@@ -244,8 +307,19 @@ BEGIN
   UPDATE public.profiles
   SET total_portions_saved = total_portions_saved + v_claim.portions_claimed
   WHERE id = v_post.donor_id;
+
+  UPDATE public.profiles
+  SET rescue_points = rescue_points + v_claim.portions_claimed
+  WHERE id = v_claim.claimer_id;
 END;
 $$;
+
+REVOKE ALL ON FUNCTION public.claim_food_portion(UUID, TEXT, TEXT, INTEGER) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.cancel_claim(UUID) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.confirm_pickup(UUID) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.claim_food_portion(UUID, TEXT, TEXT, INTEGER) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.cancel_claim(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.confirm_pickup(UUID) TO authenticated;
 
 -- ─── AUTO-CREATE PROFILE TRIGGER ─────────────────────────────
 -- Otomatis buat baris profil kosong saat user baru daftar
@@ -272,35 +346,52 @@ CREATE TRIGGER on_auth_user_created
 -- Profiles
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Public profiles are viewable by everyone"
-  ON public.profiles FOR SELECT USING (true);
+REVOKE SELECT ON public.profiles FROM anon, authenticated;
+GRANT SELECT (id, full_name, whatsapp_number, district, avatar_url, total_portions_saved, rescue_points, created_at)
+  ON public.profiles TO authenticated;
 
+DROP POLICY IF EXISTS "Public profiles are viewable by everyone" ON public.profiles;
+DROP POLICY IF EXISTS "Users can view their own profile" ON public.profiles;
+CREATE POLICY "Users can view their own profile"
+  ON public.profiles FOR SELECT USING (auth.uid() = id);
+
+DROP POLICY IF EXISTS "Users can update their own profile" ON public.profiles;
 CREATE POLICY "Users can update their own profile"
   ON public.profiles FOR UPDATE USING (auth.uid() = id);
 
+DROP POLICY IF EXISTS "Users can insert their own profile" ON public.profiles;
 CREATE POLICY "Users can insert their own profile"
   ON public.profiles FOR INSERT WITH CHECK (auth.uid() = id);
 
 -- Food Posts
 ALTER TABLE public.food_posts ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Anyone can view available food posts" ON public.food_posts;
 CREATE POLICY "Anyone can view available food posts"
   ON public.food_posts FOR SELECT USING (true);
 
+DROP POLICY IF EXISTS "Authenticated users can insert food posts" ON public.food_posts;
 CREATE POLICY "Authenticated users can insert food posts"
   ON public.food_posts FOR INSERT WITH CHECK (auth.uid() = donor_id);
 
+DROP POLICY IF EXISTS "Donors can update their own food posts" ON public.food_posts;
 CREATE POLICY "Donors can update their own food posts"
   ON public.food_posts FOR UPDATE USING (auth.uid() = donor_id);
 
 -- Claims
 ALTER TABLE public.claims ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Anyone can view claims"
-  ON public.claims FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Anyone can view claims" ON public.claims;
+DROP POLICY IF EXISTS "Users can view their own claims or donor claims" ON public.claims;
+CREATE POLICY "Users can view their own claims or donor claims"
+  ON public.claims FOR SELECT USING (
+    auth.uid() = claimer_id OR EXISTS (
+      SELECT 1 FROM public.food_posts
+      WHERE food_posts.id = claims.post_id AND food_posts.donor_id = auth.uid()
+    )
+  );
 
-CREATE POLICY "Anyone can insert claims (via RPC)"
-  ON public.claims FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Anyone can insert claims (via RPC)" ON public.claims;
 
 -- ─── INDEXES UNTUK PERFORMA ───────────────────────────────────
 CREATE INDEX IF NOT EXISTS idx_food_posts_active 
@@ -315,9 +406,23 @@ CREATE INDEX IF NOT EXISTS idx_claims_post_id
 CREATE INDEX IF NOT EXISTS idx_claims_status 
   ON public.claims (status);
 
+CREATE INDEX IF NOT EXISTS idx_claims_claimer_id
+  ON public.claims (claimer_id);
+
 -- ─── REALTIME ────────────────────────────────────────────────
 -- Aktifkan Realtime untuk tabel food_posts dari UI Supabase:
 -- Database > Replication > food_posts > Toggle ON
+-- Klaim memiliki subscriber antrean warga/donatur:
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime')
+     AND NOT EXISTS (
+       SELECT 1 FROM pg_publication_tables
+       WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'claims'
+     ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.claims;
+  END IF;
+END $$;
 
 -- ============================================================
 -- SELESAI — Semua objek database BagiRasa siap digunakan

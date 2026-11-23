@@ -12,7 +12,7 @@ export function AuthProvider({ children }) {
     setLoading(true)
     const { data } = await supabase
       .from('profiles')
-      .select('*')
+      .select('id, full_name, whatsapp_number, district, avatar_url, total_portions_saved, rescue_points, created_at')
       .eq('id', userId)
       .single()
     setProfile(data)
@@ -47,7 +47,8 @@ export function AuthProvider({ children }) {
   }
 
   async function signOut() {
-    await supabase.auth.signOut()
+    const { error } = await supabase.auth.signOut()
+    return { error }
   }
 
   async function updateProfile(updates) {

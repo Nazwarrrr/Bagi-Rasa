@@ -22,7 +22,7 @@ export default function AddFoodForm({ onSuccess }) {
   const [imageFile, setImageFile] = useState(null)
   const [imagePreview, setImagePreview] = useState(null)
   const [form, setForm] = useState({
-    title: '', category: 'Makanan Berat', is_halal: true,
+    title: '', description: '', category: 'Makanan Berat', is_halal: true,
     initial_portions: 4, duration: 2,
     pickup_address: '', maps_url: '',
   })
@@ -74,6 +74,7 @@ export default function AddFoodForm({ onSuccess }) {
       const { error } = await supabase.from('food_posts').insert({
         donor_id: user.id,
         title: form.title.trim(),
+        description: form.description.trim() || null,
         category: form.category,
         is_halal: form.is_halal,
         initial_portions: form.initial_portions,
@@ -87,7 +88,7 @@ export default function AddFoodForm({ onSuccess }) {
       if (error) throw error
 
       toast.success('Donasi berhasil diposting!')
-      setForm({ title: '', category: 'Makanan Berat', is_halal: true, initial_portions: 4, duration: 2, pickup_address: '', maps_url: '' })
+      setForm({ title: '', description: '', category: 'Makanan Berat', is_halal: true, initial_portions: 4, duration: 2, pickup_address: '', maps_url: '' })
       setImageFile(null)
       setImagePreview(null)
       onSuccess?.()
@@ -110,6 +111,12 @@ export default function AddFoodForm({ onSuccess }) {
         <label className={labelCls}>Judul Makanan</label>
         <input type="text" placeholder="cth. Nasi Gudeg + Ayam Sisa Event" value={form.title}
           onChange={e => handleChange('title', e.target.value)} className={inputCls} />
+      </div>
+
+      <div>
+        <label className={labelCls}>Deskripsi (opsional)</label>
+        <textarea rows={3} placeholder="Bahan, cara penyimpanan, atau informasi penting..." value={form.description}
+          onChange={e => handleChange('description', e.target.value)} className={`${inputCls} resize-y`} />
       </div>
 
       <div className="grid grid-cols-2 gap-4">
@@ -181,12 +188,12 @@ export default function AddFoodForm({ onSuccess }) {
           ) : (
             <>
               <Image size={24} className="text-slate-400" />
-              <span className="text-xs text-slate-400">Klik untuk unggah foto</span>
+              <span className="text-xs text-slate-600 dark:text-slate-300">Klik untuk unggah foto</span>
             </>
           )}
           <input type="file" accept="image/*" className="hidden" onChange={handleImageChange} />
         </label>
-        <p className="text-xs text-slate-400 mt-1">Dikompres otomatis maks. 250 KB</p>
+        <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">Dikompres otomatis maks. 250 KB</p>
       </div>
 
       <button type="submit" disabled={loading}

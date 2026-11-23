@@ -13,9 +13,10 @@
 
 Banyak makanan layak konsumsi terbuang setiap hari menjelang jam tutup toko atau usai acara, sementara warga di lingkungan sekitar membutuhkan akses pangan cepat. Bagi-Rasa memangkas hambatan distribusi dengan tiga pilar utama:
 
-1. **Zero-Friction Access (Tanpa Login untuk Warga):** Pengunjung langsung dapat melihat katalog makanan aktif, menyaring berdasarkan kecamatan, dan mengklaim maksimal 2 porsi hanya menggunakan Nama dan nomor WhatsApp.
+1. **Akun Komunitas Terpadu:** Pengunjung dapat melihat dan menyaring katalog secara publik. Klaim porsi dan pengelolaan donasi memerlukan akun dengan profil lengkap agar tiket serta riwayat klaim tersimpan.
 2. **Food Safety Guardrails:** Setiap donasi memiliki batas waktu aman konsumsi (2, 3, atau 4 jam) dengan *Countdown Timer* berjalan mundur. Postingan otomatis menghilang dari katalog ketika waktu habis atau kuota mencapai nol.
-3. **Closed-Loop Verification & Anti-Ghosting:** Warga menerima tiket kode unik (`#BR-XXXX`) beserta pintasan rute Google Maps dan chat WhatsApp otomatis ke donatur. Poin donatur di *Leaderboard* hanya bertambah setelah donatur memverifikasi pengambilan di lokasi.
+3. **Closed-Loop Verification & Anti-Ghosting:** Warga menerima tiket kode unik (`#BR-XXXX`) dengan QR Code, pintasan Google Maps, dan chat WhatsApp ke donatur. Poin warga dan donatur bertambah setelah pengambilan diverifikasi.
+4. **Animated Community Experience:** Scroll-reveal, penghitung dampak, kartu katalog, tab, FAQ, dan dialog memakai Framer Motion dengan dukungan preferensi reduced-motion.
 
 ---
 
@@ -33,6 +34,8 @@ Banyak makanan layak konsumsi terbuang setiap hari menjelang jam tutup toko atau
 | Layer | Teknologi |
 |---|---|
 | **Frontend** | React 18+, Vite 6+, Tailwind CSS v4 |
+| **Typography** | Plus Jakarta Sans (self-hosted via Fontsource) |
+| **Motion & Tickets** | Framer Motion, qrcode.react |
 | **Ikon** | Lucide React (vektor garis murni, tanpa emoji pada tombol/status) |
 | **Backend & DB** | Supabase (PostgreSQL, Auth, Storage, Realtime, RPC) |
 | **Media Optimization** | browser-image-compression (WebWorker) |

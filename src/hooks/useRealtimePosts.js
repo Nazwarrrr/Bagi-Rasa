@@ -10,24 +10,29 @@ export function useRealtimePosts(filters = {}) {
     setLoading(true)
     setError(null)
     try {
+      let districtDonorIds = null
+      if (filters.district && filters.district !== 'all') {
+        const { data: districtProfiles, error: districtError } = await supabase
+          .from('donor_profiles')
+          .select('id')
+          .eq('district', filters.district)
+        if (districtError) throw districtError
+        districtDonorIds = (districtProfiles || []).map(profile => profile.id)
+        if (districtDonorIds.length === 0) {
+          setPosts([])
+          return
+        }
+      }
+
       let query = supabase
         .from('food_posts')
-        .select(`
-          *,
-          profiles:donor_id!inner (
-            full_name,
-            whatsapp_number,
-            district
-          )
-        `)
+        .select('*')
         .eq('status', 'available')
         .gt('remaining_portions', 0)
         .gt('expires_at', new Date().toISOString())
-        .order('created_at', { ascending: false })
+        .order(filters.sort === 'expiring' ? 'expires_at' : 'created_at', { ascending: filters.sort === 'expiring' })
 
-      if (filters.district && filters.district !== 'all') {
-        query = query.eq('profiles.district', filters.district)
-      }
+      if (districtDonorIds) query = query.in('donor_id', districtDonorIds)
       if (filters.category && filters.category !== 'Semua') {
         query = query.eq('category', filters.category)
       }
@@ -37,13 +42,23 @@ export function useRealtimePosts(filters = {}) {
 
       const { data, error: err } = await query
       if (err) throw err
-      setPosts(data || [])
+      if (!data?.length) {
+        setPosts([])
+        return
+      }
+      const { data: donorProfiles, error: profilesError } = await supabase
+        .from('donor_profiles')
+        .select('id, full_name, district, avatar_url')
+        .in('id', [...new Set(data.map(post => post.donor_id))])
+      if (profilesError) throw profilesError
+      const profilesById = new Map((donorProfiles || []).map(profile => [profile.id, profile]))
+      setPosts(data.map(post => ({ ...post, profiles: profilesById.get(post.donor_id) || null })))
     } catch (err) {
       setError(err.message)
     } finally {
       setLoading(false)
     }
-  }, [filters.district, filters.category, filters.search])
+  }, [filters.district, filters.category, filters.search, filters.sort])
 
   useEffect(() => {
     fetchPosts()

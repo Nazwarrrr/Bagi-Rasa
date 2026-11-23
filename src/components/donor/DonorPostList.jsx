@@ -60,9 +60,9 @@ export default function DonorPostList({ onPostUpdated }) {
 
   if (posts.length === 0) {
     return (
-      <div className={`text-center py-10 rounded-2xl ${isDark ? 'bg-white/5' : 'bg-slate-50'}`}>
+      <div className={`rounded-3xl py-10 text-center ${isDark ? 'bg-white/5' : 'bg-slate-50'}`}>
         <Utensils size={36} className="mx-auto mb-2 text-slate-400 opacity-50" />
-        <p className="text-sm text-slate-500 dark:text-slate-400">Anda belum pernah memposting donasi makanan</p>
+        <p className="text-sm text-slate-600 dark:text-slate-300">Anda belum pernah memposting donasi makanan</p>
       </div>
     )
   }
@@ -74,7 +74,7 @@ export default function DonorPostList({ onPostUpdated }) {
         return (
           <div
             key={post.id}
-            className={`glass-card rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border transition-all ${
+            className={`glass-card flex flex-col justify-between gap-4 rounded-3xl p-5 transition-all sm:flex-row sm:items-center ${
               isLive ? 'border-teal-500/30' : 'opacity-70 border-white/5'
             }`}
           >
@@ -89,7 +89,7 @@ export default function DonorPostList({ onPostUpdated }) {
                 }`}>
                   {isLive ? 'AKTIF' : post.status === 'completed' ? 'SELESAI' : 'KEDALUWARSA'}
                 </span>
-                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
                   {post.category}
                 </span>
                 {post.is_halal && (
@@ -101,7 +101,7 @@ export default function DonorPostList({ onPostUpdated }) {
 
               <h4 className="font-bold text-base leading-tight">{post.title}</h4>
 
-              <div className="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400">
+              <div className="flex items-center gap-4 text-xs text-slate-600 dark:text-slate-300">
                 <span className="flex items-center gap-1 font-semibold text-teal-600 dark:text-teal-400">
                   <Users size={12} />
                   Sisa {post.remaining_portions} dari {post.initial_portions} porsi

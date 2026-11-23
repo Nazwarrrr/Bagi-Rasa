@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
+import '@fontsource-variable/plus-jakarta-sans'
 import './index.css'
 import App from './App.jsx'
 import { AuthProvider } from './contexts/AuthContext.jsx'
@@ -22,7 +23,7 @@ createRoot(document.getElementById('root')).render(
                 fontWeight: '500',
               },
               success: {
-                iconTheme: { primary: '#10B981', secondary: '#fff' },
+                iconTheme: { primary: '#0D9488', secondary: '#fff' },
               },
               error: {
                 iconTheme: { primary: '#EF4444', secondary: '#fff' },
