@@ -14,7 +14,7 @@ export function useRealtimePosts(filters = {}) {
         .from('food_posts')
         .select(`
           *,
-          profiles:donor_id (
+          profiles:donor_id!inner (
             full_name,
             whatsapp_number,
             district
@@ -57,8 +57,13 @@ export function useRealtimePosts(filters = {}) {
           if (payload.eventType === 'UPDATE') {
             setPosts(prev =>
               prev
-                .map(p => p.id === payload.new.id ? { ...p, ...payload.new } : p)
-                .filter(p => p.remaining_portions > 0 && new Date(p.expires_at) > new Date())
+                .map(p => (p.id === payload.new.id ? { ...p, ...payload.new } : p))
+                .filter(
+                  p =>
+                    p.status === 'available' &&
+                    p.remaining_portions > 0 &&
+                    new Date(p.expires_at) > new Date()
+                )
             )
           } else if (payload.eventType === 'INSERT') {
             if (payload.new.status === 'available' && payload.new.remaining_portions > 0) {

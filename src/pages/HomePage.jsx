@@ -40,7 +40,12 @@ export default function HomePage() {
   }
 
   function handleViewTicket(post, localClaim) {
-    setTicketData({ ...localClaim, post_title: post.title })
+    setTicketData({
+      ...localClaim,
+      post_title: post.title,
+      donor_whatsapp: post.profiles?.whatsapp_number || localClaim.donor_whatsapp,
+      maps_url: post.maps_url || localClaim.maps_url,
+    })
   }
 
   function handleClaimSuccess(claimData) {

@@ -73,12 +73,34 @@ ORDER BY p.total_portions_saved DESC
 LIMIT 10;
 
 -- ─── STORAGE ─────────────────────────────────────────────────
--- Buat bucket "food-images" sebagai public bucket dari UI Supabase:
--- Storage > New Bucket > Name: food-images > Public: ON
--- Lalu tambahkan policies berikut:
+-- Otomatis buat bucket "food-images" (public bucket):
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('food-images', 'food-images', true)
+ON CONFLICT (id) DO NOTHING;
 
--- Policy 1: Allow public SELECT (read) untuk semua orang
--- Policy 2: Allow authenticated INSERT (upload) untuk user yang login
+-- Policy 1: Akses baca publik (SELECT)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE schemaname = 'storage' AND tablename = 'objects' AND policyname = 'Public Read Access for food-images'
+  ) THEN
+    CREATE POLICY "Public Read Access for food-images"
+      ON storage.objects FOR SELECT
+      USING (bucket_id = 'food-images');
+  END IF;
+END $$;
+
+-- Policy 2: Upload untuk user login (INSERT)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE schemaname = 'storage' AND tablename = 'objects' AND policyname = 'Authenticated users can upload food-images'
+  ) THEN
+    CREATE POLICY "Authenticated users can upload food-images"
+      ON storage.objects FOR INSERT
+      WITH CHECK (bucket_id = 'food-images' AND auth.role() = 'authenticated');
+  END IF;
+END $$;
 
 -- ─── RPC FUNCTIONS ───────────────────────────────────────────
 

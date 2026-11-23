@@ -1,17 +1,17 @@
-# 🍲 BagiRasa — Real-Time Community Food Rescue Platform
+# 🍲 Bagi-Rasa — Real-Time Community Food Rescue Platform
 
 ![React](https://img.shields.io/badge/React-18+-61DAFB?style=flat-square&logo=react&logoColor=black)
 ![Vite](https://img.shields.io/badge/Vite-6+-646CFF?style=flat-square&logo=vite&logoColor=white)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v4-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white)
 ![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL_%7C_Realtime-3ECF8E?style=flat-square&logo=supabase&logoColor=white)
 
-**BagiRasa** adalah platform web *mobile-first* berbasis komunitas yang menghubungkan penyedia makanan berlebih (warung makan, toko roti, panitia acara, dan warga) dengan masyarakat sekitar secara *real-time* sebelum makanan melewati batas aman konsumsi.
+**Bagi-Rasa** adalah platform web *mobile-first* berbasis komunitas yang menghubungkan penyedia makanan berlebih (warung makan, toko roti, panitia acara, dan warga) dengan masyarakat sekitar secara *real-time* sebelum makanan melewati batas aman konsumsi.
 
 ---
 
 ## 🎯 Masalah & Solusi Utama
 
-Banyak makanan layak konsumsi terbuang setiap hari menjelang jam tutup toko atau usai acara, sementara warga di lingkungan sekitar membutuhkan akses pangan cepat. BagiRasa memangkas hambatan distribusi dengan tiga pilar utama:
+Banyak makanan layak konsumsi terbuang setiap hari menjelang jam tutup toko atau usai acara, sementara warga di lingkungan sekitar membutuhkan akses pangan cepat. Bagi-Rasa memangkas hambatan distribusi dengan tiga pilar utama:
 
 1. **Zero-Friction Access (Tanpa Login untuk Warga):** Pengunjung langsung dapat melihat katalog makanan aktif, menyaring berdasarkan kecamatan, dan mengklaim maksimal 2 porsi hanya menggunakan Nama dan nomor WhatsApp.
 2. **Food Safety Guardrails:** Setiap donasi memiliki batas waktu aman konsumsi (2, 3, atau 4 jam) dengan *Countdown Timer* berjalan mundur. Postingan otomatis menghilang dari katalog ketika waktu habis atau kuota mencapai nol.
@@ -33,9 +33,9 @@ Banyak makanan layak konsumsi terbuang setiap hari menjelang jam tutup toko atau
 | Layer | Teknologi |
 |---|---|
 | **Frontend** | React 18+, Vite 6+, Tailwind CSS v4 |
-| **Ikon** | Lucide React (ikon vektor garis) |
+| **Ikon** | Lucide React (vektor garis murni, tanpa emoji pada tombol/status) |
 | **Backend & DB** | Supabase (PostgreSQL, Auth, Storage, Realtime, RPC) |
-| **Media Optimization** | browser-image-compression |
+| **Media Optimization** | browser-image-compression (WebWorker) |
 | **Deployment** | Vercel (CI/CD via GitHub) |
 
 ---
@@ -44,7 +44,8 @@ Banyak makanan layak konsumsi terbuang setiap hari menjelang jam tutup toko atau
 
 ```text
 bagirasa/
-├── public/                   # Aset statis & favicon
+├── public/
+│   └── favicon.svg           # Ikon browser
 ├── src/
 │   ├── components/
 │   │   ├── claim/            # ClaimModal & DigitalTicketModal (#BR-XXXX)
@@ -55,9 +56,11 @@ bagirasa/
 │   ├── hooks/                # useRealtimePosts & useCountdown
 │   ├── lib/                  # supabaseClient.js & WhatsApp/Date formatters
 │   ├── pages/                # HomePage, LeaderboardPage, LoginPage, DashboardPage
-│   ├── App.jsx               # Routing utama
-│   └── index.css             # Konfigurasi Tailwind v4 & Design Tokens
+│   ├── App.jsx               # Routing & ProtectedRoute
+│   ├── index.css             # Konfigurasi Tailwind v4 & Design Tokens
+│   └── main.jsx              # Entry point React
 ├── supabase-schema.sql       # Skema tabel, view, RLS policies, & fungsi RPC
+├── .env.example              # Template variabel lingkungan
 └── README.md
 ```
 
@@ -67,8 +70,8 @@ bagirasa/
 
 **1. Clone repositori ini:**
 ```bash
-git clone https://github.com/Nazwarrrr/BagiRasa.git
-cd BagiRasa
+git clone https://github.com/Nazwarrrr/Bagi-Rasa.git
+cd Bagi-Rasa
 ```
 
 **2. Install dependensi:**
@@ -85,12 +88,18 @@ VITE_SUPABASE_ANON_KEY=sb_publishable_your_anon_key
 ```
 
 **4. Setup Database & Storage Supabase:**
-- Jalankan seluruh isi file `supabase-schema.sql` pada menu **SQL Editor** di dasbor Supabase.
-- Buat **Public Storage Bucket** baru bernama `food-images` dan aktifkan policy akses baca publik (`SELECT`) serta unggah terautentikasi (`INSERT`).
+- Buka menu **SQL Editor** di dasbor Supabase Anda.
+- Jalankan seluruh isi file `supabase-schema.sql` (skema ini sudah otomatis membuat tabel, view, RLS, storage bucket `food-images`, dan fungsi RPC).
+- Di menu **Database > Replication**, aktifkan replikasi untuk tabel `food_posts` agar fitur Realtime aktif.
 
 **5. Jalankan server pengembangan:**
 ```bash
 npm run dev
+```
+
+**6. Build untuk Production:**
+```bash
+npm run build
 ```
 
 ---
@@ -99,18 +108,18 @@ npm run dev
 
 ```sql
 -- Tabel Utama
-profiles        → Data profil & statistik donatur
-food_posts      → Katalog donasi makanan aktif
-claims          → Rekaman klaim warga (#BR-XXXX)
+profiles        → Data profil donatur & statistik porsi terselamatkan
+food_posts      → Katalog donasi makanan aktif & kuota
+claims          → Rekaman klaim warga dengan kode unik (#BR-XXXX)
 
 -- Views
-active_districts  → Kecamatan dengan postingan aktif
-donor_leaderboard → Peringkat donatur berdasarkan porsi terverifikasi
+active_districts  → Kecamatan dengan donasi aktif
+donor_leaderboard → Peringkat Top 10 donatur berdasarkan porsi terverifikasi
 
 -- RPC Functions (Row-Level Locked)
 claim_food_portion()  → Atomic stock deduction + generate pickup code
-cancel_claim()        → Kembalikan stok ke katalog
-confirm_pickup()      → Verifikasi pengambilan + tambah poin donatur
+cancel_claim()        → Kembalikan stok ke katalog jika dibatalkan
+confirm_pickup()      → Verifikasi pengambilan + tambah skor donatur
 ```
 
 ---
@@ -119,14 +128,14 @@ confirm_pickup()      → Verifikasi pengambilan + tambah poin donatur
 
 | Fitur | Deskripsi |
 |---|---|
-| 🕐 **Countdown Timer** | Per-detik, berubah warna Amber saat < 30 menit |
-| 📡 **Realtime Sync** | Supabase Realtime — porsi berkurang langsung tanpa refresh |
-| 🎫 **Digital Ticket** | Kode `#BR-XXXX` + shortcut WA otomatis ke donatur |
-| 🗺️ **Google Maps** | Tombol rute langsung ke titik pengambilan |
-| 🏆 **Leaderboard** | Top 10 donatur berdasarkan porsi terverifikasi |
-| 🌙 **Dark Mode** | Toggle Light/Dark, preferensi disimpan di localStorage |
-| 📱 **Mobile-First** | Responsif dari 360px hingga desktop |
-| 🔒 **Anti-Race Condition** | PostgreSQL `FOR UPDATE` lock pada fungsi klaim |
+| 🕐 **Countdown Timer** | Berjalan mundur per-detik, otomatis pulsa Amber saat < 30 menit |
+| 📡 **Realtime Sync** | Supabase Realtime — kuota porsi berkurang live tanpa refresh |
+| 🎫 **Digital Ticket** | Kode unik `#BR-XXXX` + pintasan rute Google Maps & WA otomatis |
+| 🗺️ **Google Maps** | Tombol navigasi rute langsung ke titik lokasi donatur |
+| 🏆 **Leaderboard** | Top 10 donatur apresiasi berdasarkan porsi terverifikasi diambil |
+| 🌙 **Dark Mode** | Desain Glassmorphism dengan toggle Light/Dark tersimpan di localStorage |
+| 📱 **Mobile-First** | Responsif penuh dari layar 360px (mobile) hingga desktop |
+| 🔒 **Anti-Race Condition** | PostgreSQL `FOR UPDATE` lock di tingkat database untuk mencegah overselling |
 
 ---
 
@@ -139,3 +148,4 @@ Dikembangkan oleh **Nazwar Makarim Mahardhika** ([@Nazwarrrr](https://github.com
 <p align="center">
   <i>Makanan diselamatkan adalah rezeki yang dibagikan. 🍛</i>
 </p>
+
